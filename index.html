@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fairscraft Staff Portal</title>
+<title>Faircraft Staff Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Germania+One&family=Montserrat:wght@300;400;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -477,7 +477,7 @@
 
 <div class="header">
   <div class="header-logo">
-    Fairscraft
+    Faircraft
     <span>Staff Portal</span>
   </div>
   <div class="header-date" id="headerDate"></div>
@@ -546,12 +546,12 @@
   let selectedDate = new Date();
   let calMonth = new Date();
   let allData = [];
-  let sheetId = localStorage.getItem('fc_sheetId') || '';
+  let sheetId = localStorage.getItem('fc_sheetId') || '1Hr0lgStBGYwNMSajP2DYt_5X8KLuhjqDJsOJhpEvcY4';
 
   window.onload = () => {
     updateHeaderDate();
+    document.getElementById('sheetIdInput').value = sheetId;
     if (sheetId) {
-      document.getElementById('sheetIdInput').value = sheetId;
       loadData();
     }
     renderDayView();
