@@ -73,24 +73,59 @@
     font-weight: 700;
   }
 
-  /* ── ALERT BANNER ── */
-  #alertBanner { display: none; }
-  .alert-banner {
+  /* ── ALERT BUBBLES ── */
+  #alertBanner {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
     background: #1a0e00;
     border-bottom: 2px solid var(--gold);
-    padding: 0 20px;
   }
-  .alert-banner-inner {
-    padding: 10px 0;
+  #alertBanner.visible { display: flex; }
+  .alert-bubble {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--gold);
+    color: var(--obsidian);
+    padding: 10px 12px;
+    border-radius: 4px;
+  }
+  .alert-bubble-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .alert-bubble-body { flex: 1; }
+  .alert-bubble-msg {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .alert-bubble-notes {
+    font-family: 'Lato', sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    margin-top: 3px;
+    opacity: 0.75;
+    line-height: 1.4;
+  }
+  .alert-bubble-posted {
+    font-family: 'Lato', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 4px;
+    opacity: 0.55;
   }
   .alert-header-row {
     display: flex;
     align-items: center;
-    gap: 8px;
     justify-content: space-between;
+    margin-bottom: 4px;
   }
   .alert-label {
     font-family: 'Lato', sans-serif;
@@ -99,13 +134,6 @@
     letter-spacing: 3px;
     text-transform: uppercase;
     color: var(--gold);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .alert-label::before {
-    content: '⚑';
-    font-size: 12px;
   }
   .alert-dismiss {
     background: transparent;
@@ -113,34 +141,10 @@
     color: var(--concrete-light);
     font-size: 16px;
     cursor: pointer;
+    padding: 0 2px;
     line-height: 1;
-    padding: 0 4px;
   }
   .alert-dismiss:hover { color: var(--white); }
-  .alert-item {
-    font-family: 'Lato', sans-serif;
-    font-size: 13px;
-    color: var(--white);
-    font-weight: 400;
-    line-height: 1.4;
-    padding: 8px 10px;
-    background: #221500;
-    border-left: 3px solid var(--gold);
-  }
-  .alert-item + .alert-item { margin-top: 4px; }
-  .alert-notes {
-    font-size: 12px;
-    color: var(--concrete-light);
-    margin-top: 4px;
-    font-weight: 300;
-    line-height: 1.4;
-  }
-  .alert-posted {
-    font-size: 10px;
-    color: var(--concrete-light);
-    margin-top: 2px;
-    font-weight: 300;
-  }
 
   /* ── TABS ── */
   .view-toggle {
@@ -484,15 +488,13 @@
   <div class="header-date" id="headerDate"></div>
 </div>
 
-<!-- ALERT BANNER -->
-<div id="alertBanner" class="alert-banner">
-  <div class="alert-banner-inner">
-    <div class="alert-header-row">
-      <div class="alert-label">Staff Alerts</div>
-      <button class="alert-dismiss" onclick="dismissAlerts()" title="Dismiss">✕</button>
-    </div>
-    <div id="alertList"></div>
+<!-- ALERT BUBBLES -->
+<div id="alertBanner">
+  <div class="alert-header-row">
+    <div class="alert-label">⚑ Staff Alerts</div>
+    <button class="alert-dismiss" onclick="dismissAlerts()">✕</button>
   </div>
+  <div id="alertList"></div>
 </div>
 
 <!-- VIEW TABS -->
@@ -595,24 +597,29 @@ function setView(v) {
 async function loadAllData() {
   setStatus('loading', 'Fetching schedule...');
   try {
-    const [sheet1, specials, alerts] = await Promise.all([
+    const [eventsCSV, specialsCSV] = await Promise.all([
       fetchSheet('Events'),
       fetchSheet('Specials'),
-      fetchSheet('Alerts'),
     ]);
-    scheduleData = parseSchedule(sheet1);
-    specialsData = parseSpecials(specials);
-    alertsData   = parseAlerts(alerts);
-
+    scheduleData = parseSchedule(eventsCSV);
+    specialsData = parseSpecials(specialsCSV);
     const total = scheduleData.length + specialsData.length;
     const t = new Date();
     setStatus('live', `Live · ${total} entries · ${t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`);
-
-    renderAlerts();
     renderDayView();
     renderCalendar();
   } catch(e) {
     setStatus('error', 'Could not load — make sure sheet is shared: Anyone with link → Viewer');
+  }
+  // Alerts fetched separately so a tab error doesn't hide everything
+  try {
+    const alertsCSV = await fetchSheet('Alerts');
+    console.log('[Faircraft] Alerts raw CSV:', alertsCSV);
+    alertsData = parseAlerts(alertsCSV);
+    console.log('[Faircraft] Parsed alerts:', alertsData);
+    renderAlerts();
+  } catch(e) {
+    console.warn('[Faircraft] Could not load Alerts tab:', e);
   }
 }
 
@@ -710,23 +717,29 @@ function parseGSheetsDate(s) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// ─── ALERTS BANNER ────────────────────────────────────────────────────────────
+// ─── ALERTS ───────────────────────────────────────────────────────────────────
 function renderAlerts() {
   const banner = document.getElementById('alertBanner');
-  if (!alertsData.length || alertsDismissed) { banner.style.display = 'none'; return; }
-  banner.style.display = '';
+  if (!alertsData.length || alertsDismissed) {
+    banner.classList.remove('visible');
+    return;
+  }
   document.getElementById('alertList').innerHTML = alertsData.map(a =>
-    `<div class="alert-item">
-      ${a.msg}
-      ${a.notes ? `<div class="alert-notes">${a.notes}</div>` : ''}
-      ${a.posted ? `<div class="alert-posted">Posted ${a.posted}</div>` : ''}
+    `<div class="alert-bubble">
+      <div class="alert-bubble-icon">⚠</div>
+      <div class="alert-bubble-body">
+        <div class="alert-bubble-msg">${a.msg}</div>
+        ${a.notes  ? `<div class="alert-bubble-notes">${a.notes}</div>`   : ''}
+        ${a.posted ? `<div class="alert-bubble-posted">Since ${a.posted}</div>` : ''}
+      </div>
     </div>`
   ).join('');
+  banner.classList.add('visible');
 }
 
 function dismissAlerts() {
   alertsDismissed = true;
-  document.getElementById('alertBanner').style.display = 'none';
+  document.getElementById('alertBanner').classList.remove('visible');
 }
 
 // ─── DAY VIEW ─────────────────────────────────────────────────────────────────
