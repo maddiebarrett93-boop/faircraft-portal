@@ -596,7 +596,7 @@ async function loadAllData() {
   setStatus('loading', 'Fetching schedule...');
   try {
     const [sheet1, specials, alerts] = await Promise.all([
-      fetchSheet('Sheet1'),
+      fetchSheet('Events'),
       fetchSheet('Specials'),
       fetchSheet('Alerts'),
     ]);
@@ -676,26 +676,38 @@ function parseSpecials(csv) {
   return rows;
 }
 
-// Alerts: Message | Active (TRUE/FALSE) | Posted | Notes
+// Alerts: Message | Active (boolean checkbox) | Posted (date) | Notes
 function parseAlerts(csv) {
   const rows = [];
   const lines = csv.trim().split('\n');
-  console.log('[Faircraft] Alerts tab raw CSV lines:', lines);
+  console.log('[Faircraft] Alerts raw CSV:', lines);
   for (let i = 1; i < lines.length; i++) {
     const c = splitCSV(lines[i]);
     const msg = clean(c[0]);
     if (!msg) continue;
-    const activeRaw = clean(c[1]).toUpperCase().replace(/"/g, '');
-    const active = ['TRUE', '1', 'YES'].includes(activeRaw);
-    console.log(`[Faircraft] Alert row ${i}: msg="${msg}" activeRaw="${activeRaw}" active=${active}`);
-    if (!active) continue; // only show active alerts
-    rows.push({
-      msg,
-      posted: clean(c[2]),
-      notes:  clean(c[3]),
-    });
+
+    // Google Sheets checkbox exports as TRUE/FALSE unquoted
+    const activeRaw = clean(c[1]).toUpperCase();
+    const active = activeRaw === 'TRUE';
+    console.log(`[Faircraft] Alert "${msg}" activeRaw="${activeRaw}" active=${active}`);
+    if (!active) continue;
+
+    // Google Sheets date columns export as Date(yyyy,m,d) — convert to readable
+    const postedRaw = clean(c[2]);
+    const posted = parseGSheetsDate(postedRaw) || postedRaw;
+
+    rows.push({ msg, posted, notes: clean(c[3]) });
   }
   return rows;
+}
+
+// Handles Google Sheets gviz date format: Date(2025,5,28) — months are 0-indexed
+function parseGSheetsDate(s) {
+  if (!s) return '';
+  const m = s.match(/Date\((\d+),(\d+),(\d+)\)/);
+  if (!m) return s; // not a gviz date, return as-is
+  const d = new Date(parseInt(m[1]), parseInt(m[2]), parseInt(m[3]));
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 // ─── ALERTS BANNER ────────────────────────────────────────────────────────────
