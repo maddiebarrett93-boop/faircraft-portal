@@ -680,12 +680,15 @@ function parseSpecials(csv) {
 function parseAlerts(csv) {
   const rows = [];
   const lines = csv.trim().split('\n');
+  console.log('[Faircraft] Alerts tab raw CSV lines:', lines);
   for (let i = 1; i < lines.length; i++) {
     const c = splitCSV(lines[i]);
     const msg = clean(c[0]);
     if (!msg) continue;
-    const active = clean(c[1]).toUpperCase();
-    if (active !== 'TRUE') continue; // only show active alerts
+    const activeRaw = clean(c[1]).toUpperCase().replace(/"/g, '');
+    const active = ['TRUE', '1', 'YES'].includes(activeRaw);
+    console.log(`[Faircraft] Alert row ${i}: msg="${msg}" activeRaw="${activeRaw}" active=${active}`);
+    if (!active) continue; // only show active alerts
     rows.push({
       msg,
       posted: clean(c[2]),
